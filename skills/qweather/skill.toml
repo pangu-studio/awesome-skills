@@ -1,29 +1,54 @@
 [skill]
 name = "qweather"
-version = "0.1.0"
+version = "0.3.1"
 description = "Query weather information using QWeather API"
 author = "drmfly"
 license = "MIT"
 tags = ["weather", "qweather"]
 
 [runtime]
-type = "built-in"
-# entry = "src/main.py"
+type = "builtin"
 
-# [[tools.provided]]
-# name = "summarize_url"
-# description = "Fetch a URL and return a concise bullet-point summary"
-# input_schema = { type = "object", properties = { url = { type = "string", description = "The URL to summarize" } }, required = [
-#     "url",
-# ] }
+[[tools.provided]]
+name = "weather_now"
+description = "获取指定城市的实时天气情况"
+input_schema = { type = "object", properties = { city = { type = "string", description = "城市名称，如：北京、上海、绵阳" } }, required = [
+    "city",
+] }
+command = "qweather now --city {city} --format json"
 
-# [[tools.provided]]
-# name = "extract_links"
-# description = "Extract all links from a web page"
-# input_schema = { type = "object", properties = { url = { type = "string" } }, required = [
-#     "url",
-# ] }
+[[tools.provided]]
+name = "weather_forecast"
+description = "获取指定城市的天气预报（3/7/10/15/30天）"
+input_schema = { type = "object", properties = { city = { type = "string", description = "城市名称" }, days = { type = "integer", description = "预报天数：3/7/10/15/30", default = 3 } }, required = [
+    "city",
+] }
+command = "qweather forecast --city {city} --days {days} --format json"
+
+#[[tools.provided]]
+#name = "city_search"
+#description = "搜索城市获取位置ID"
+#input_schema = { type = "object", properties = { query = { type = "string", description = "城市名称或关键词" } }, required = ["query"] }
+#command = "qweather search --city {query} --format json"
 
 [requirements]
-tools = ["web_fetch"]
+tools = ["shell_exec"]
 capabilities = ["NetConnect(*)", "ShellExec(qweather)"]
+
+prompt_context = """
+# qweather 天气查询工具
+
+当用户询问天气相关问题时，优先使用 qweather 工具获取实时数据。
+
+## 工具使用
+- weather_now: 查询实时天气，参数 city 为城市名，返回 JSON 格式
+- weather_forecast: 查询天气预报，参数 city + days，返回 JSON 格式
+- city_search: 搜索城市获取位置ID，返回 JSON 格式
+
+## 输出格式
+工具返回 JSON 数据，需要解析后以友好格式呈现给用户。
+
+## 示例
+用户问"绵阳天气怎么样"→ 调用 weather_now(city="绵阳")
+用户问"北京未来一周天气"→ 调用 weather_forecast(city="北京", days=7)
+"""
