@@ -6,33 +6,54 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log/slog"
 	"net/http"
 	"net/url"
 	"time"
 )
+
+// ClientOption is a functional option for configuring a Client.
+type ClientOption func(*Client)
+
+// WithLogger sets the logger used for diagnostic output.
+// All diagnostic messages are written at Debug level to avoid polluting normal output.
+func WithLogger(logger *slog.Logger) ClientOption {
+	return func(c *Client) {
+		c.logger = logger
+	}
+}
 
 // Client is the QWeather API client
 type Client struct {
 	APIKey     string
 	BaseURL    string
 	HTTPClient *http.Client
+	logger     *slog.Logger
 }
 
-// NewClient creates a new QWeather API client
-func NewClient(apiKey, baseURL string) *Client {
+// NewClient creates a new QWeather API client.
+// Optional ClientOptions can be passed to customise the client (e.g. WithLogger).
+func NewClient(apiKey, baseURL string, opts ...ClientOption) *Client {
 	if baseURL == "" {
 		baseURL = "https://devapi.qweather.com"
 	} else if baseURL[0:4] != "http" {
 		baseURL = "https://" + baseURL
 	}
 
-	return &Client{
+	c := &Client{
 		APIKey:  apiKey,
 		BaseURL: baseURL,
 		HTTPClient: &http.Client{
 			Timeout: 30 * time.Second,
 		},
+		logger: slog.Default(),
 	}
+
+	for _, opt := range opts {
+		opt(c)
+	}
+
+	return c
 }
 
 // doRequest performs an HTTP request to the QWeather API
@@ -43,7 +64,7 @@ func (c *Client) doRequest(ctx context.Context, endpoint string, params url.Valu
 		return fmt.Errorf("parse URL: %w", err)
 	}
 
-	// Add API key to query parameters
+	// Add query parameters
 	if params == nil {
 		params = url.Values{}
 	}
@@ -55,13 +76,9 @@ func (c *Client) doRequest(ctx context.Context, endpoint string, params url.Valu
 		return fmt.Errorf("create request: %w", err)
 	}
 
-	fmt.Printf("Request URL: %s\n", req.URL.String()) // Debug log
+	c.logger.Debug("sending request", "url", req.URL.String())
 
-	// Set headers
-	// req.Header.Set("Accept", "application/json")
-	// Note: Go's http.Client automatically handles gzip decompression when needed
-
-	// set api key in header for better security
+	// Set API key in header for better security
 	req.Header.Set("X-QW-Api-Key", c.APIKey)
 
 	// Perform request
@@ -88,13 +105,13 @@ func (c *Client) doRequest(ctx context.Context, endpoint string, params url.Valu
 		return fmt.Errorf("read response body: %w", err)
 	}
 
-	// Check status code
+	// Check HTTP status code
 	if resp.StatusCode != http.StatusOK {
 		bodyStr := string(body)
 		if len(bodyStr) > 500 {
 			bodyStr = bodyStr[:500] + "... (truncated)"
 		}
-		return fmt.Errorf("API request failed with status %d", resp.StatusCode)
+		return fmt.Errorf("API request failed with status %d: %s", resp.StatusCode, bodyStr)
 	}
 
 	// Parse JSON response

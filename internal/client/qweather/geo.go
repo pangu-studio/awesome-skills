@@ -37,7 +37,6 @@ func (c *Client) SearchCity(ctx context.Context, query string) (*CitySearchRespo
 
 	var result CitySearchResponse
 	if err := c.doRequest(ctx, "/geo/v2/city/lookup", params, &result); err != nil {
-		fmt.Printf("Error searching city: %v\n", err) // Debug log
 		return nil, fmt.Errorf("search city: %w", err)
 	}
 

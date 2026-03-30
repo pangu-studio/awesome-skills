@@ -2,7 +2,6 @@ package cmd
 
 import (
 	"context"
-	"fmt"
 	"os"
 	"time"
 
@@ -44,11 +43,6 @@ func init() {
 }
 
 func runNow(cmd *cobra.Command, args []string) error {
-	// Validate flags
-	if nowLocation == "" && nowCity == "" {
-		return fmt.Errorf("either --location or --city is required (mutually exclusive)")
-	}
-
 	// Load configuration
 	cfg, err := config.Load()
 	if err != nil {
@@ -57,30 +51,21 @@ func runNow(cmd *cobra.Command, args []string) error {
 	}
 
 	// Create API client
-	client := qweather.NewClient(cfg.QWeather.APIKey, cfg.QWeather.APIHost)
+	client := qweather.NewClient(cfg.QWeather.APIKey, cfg.QWeather.APIHost, qweather.WithLogger(logger))
 
 	// Create context with timeout
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
-	// Resolve location: if using --city, search for city ID first
-	location := nowLocation
-	if nowCity != "" {
-		searchData, err := client.SearchCity(ctx, nowCity)
-		if err != nil {
-			printError(fmt.Errorf("failed to search city %q: %w", nowCity, err))
-			return err
-		}
-		if len(searchData.Location) == 0 {
-			errMsg := fmt.Sprintf("no location found for city: %q\n", nowCity)
-			errMsg += "Tip: try a different spelling or use location ID directly"
-			printError(fmt.Errorf("%s", errMsg))
-			return fmt.Errorf("city not found: %s", nowCity)
-		}
-		location = searchData.Location[0].ID
-		if verboseFlag {
-			fmt.Printf("Resolved %s to location ID: %s\n", nowCity, location)
-		}
+	// Resolve location ID (from --location or --city)
+	location, err := resolveLocation(ctx, client, nowCity, nowLocation)
+	if err != nil {
+		printError(err)
+		return err
+	}
+
+	if verboseFlag && nowCity != "" {
+		logger.Debug("resolved city to location ID", "city", nowCity, "locationID", location)
 	}
 
 	// Get current weather

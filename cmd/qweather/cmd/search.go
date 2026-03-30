@@ -45,7 +45,7 @@ func runSearch(cmd *cobra.Command, args []string) error {
 	}
 
 	// Create API client
-	client := qweather.NewClient(cfg.QWeather.APIKey, cfg.QWeather.APIHost)
+	client := qweather.NewClient(cfg.QWeather.APIKey, cfg.QWeather.APIHost, qweather.WithLogger(logger))
 
 	// Create context with timeout
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
